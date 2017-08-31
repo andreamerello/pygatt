@@ -371,7 +371,9 @@ class GATTToolBackend(BLEBackend):
         return []
 
     def connect(self, address, timeout=DEFAULT_CONNECT_TIMEOUT_S,
-                address_type=BLEAddressType.public):
+                address_type=BLEAddressType.public, interval_min=60,
+                interval_max=76, supervision_timeout=100, latency=0):
+
         log.info('Connecting to %s with timeout=%s', address, timeout)
         self.sendline('sec-level low')
         self._address = address
