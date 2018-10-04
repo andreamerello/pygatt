@@ -402,6 +402,20 @@ class BGAPIBackend(BLEBackend):
                     device.encrypted = True
                 self._connections[packet['connection_handle']] = device
                 log.info("Connected to %s", address)
+
+                # It happened that connect() returned ok but the
+                # connection wasn't really OK and we got failure at the first
+                # operation.
+                #
+                # Do a discovery now, to make sure connection is OK;
+                # Note that the discovery procedure does explicitly
+                # check for both 'procedure_completed' and 'connection_disconnected'
+                # events. Probably every operation should do that, but right now
+                # this is enough to catch failed connections.
+                #
+                # While at it, save the discovery result, so hopefully we
+                # don't have to do it again
+                device._characteristics = device.discover_characteristics()
                 return device
         except ExpectedResponseTimeout:
             # If the connection doesn't occur because the device isn't there
@@ -425,8 +439,15 @@ class BGAPIBackend(BLEBackend):
                 connection_handle, att_handle_start, att_handle_end))
 
         self.expect(ResponsePacketType.attclient_find_information)
-        self.expect(EventPacketType.attclient_procedure_completed,
-                    timeout=10)
+        #self.expect(EventPacketType.attclient_procedure_completed,
+        #timeout=10)
+
+        pkt_type = self.expect_any([EventPacketType.attclient_procedure_completed,
+                                    EventPacketType.connection_disconnected],
+                                   timeout=10)
+
+        if pkt_type[0] != EventPacketType.attclient_procedure_completed:
+            raise NotConnectedError()
 
         for char_uuid_str, char_obj in (
                 self._characteristics[connection_handle].items()):
