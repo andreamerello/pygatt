@@ -132,6 +132,7 @@ class BGAPIBLEDevice(BLEDevice):
             CommandBuilder.connection_disconnect(self._handle))
 
         self._backend.expect(ResponsePacketType.connection_disconnect)
+        self._backend.expect(EventPacketType.connection_disconnected, timeout = 5)
         log.info("Disconnected from %s", self._address)
         self._handle = None
 
