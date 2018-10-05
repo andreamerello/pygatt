@@ -136,7 +136,7 @@ class BGAPIBackend(BLEBackend):
         return detected_devices[0].port_name
 
     def _open_serial_port(self,
-                          max_connection_attempts=MAX_CONNECTION_ATTEMPTS):
+                          max_connection_attempts=MAX_CONNECTION_ATTEMPTS, timeout=0.25):
         """
         Open a connection to the named serial port, or auto-detect the first
         port matching the BLED device. This will wait until data can actually be
@@ -157,7 +157,7 @@ class BGAPIBackend(BLEBackend):
                 self._ser = None
 
                 self._ser = serial.Serial(serial_port, baudrate=115200,
-                                          timeout=0.25)
+                                          timeout=timeout)
                 # Wait until we can actually read from the device
                 self._ser.read()
                 break
@@ -185,8 +185,8 @@ class BGAPIBackend(BLEBackend):
 
         # Fail immediately if no device is attached, don't retry waiting for one
         # to be plugged in.
-        self._open_serial_port(max_connection_attempts=1)
-
+        self._open_serial_port(max_connection_attempts=1, timeout=0)
+        """
         log.info("Resetting and reconnecting to device for a clean environment")
         # Blow everything away and start anew.
         # Only way to be sure is to burn it down and start again.
@@ -197,7 +197,10 @@ class BGAPIBackend(BLEBackend):
         # The zero param just means we want to do a normal restart instead of
         # starting a firmware update restart.
         self.send_command(CommandBuilder.system_reset(0))
+        """
         self._ser.flush()
+        self._ser.read(65535)
+
         self._ser.close()
 
         self._open_serial_port()
@@ -219,6 +222,8 @@ class BGAPIBackend(BLEBackend):
         except BGAPIError:
             # Ignore any errors if there was no GAP procedure running
             pass
+
+        self.disconnect_all()
 
     def stop(self):
         for device in self._connections.values():
@@ -342,6 +347,15 @@ class BGAPIBackend(BLEBackend):
     def _end_procedure(self):
         self.send_command(CommandBuilder.gap_end_procedure())
         self.expect(ResponsePacketType.gap_end_procedure)
+
+    def disconnect_all(self):
+        for i in range(8):
+            try:
+                self.send_command(
+                    CommandBuilder.connection_disconnect(i))
+                self.expect(ResponsePacketType.connection_disconnect)
+            except:
+                pass
 
     def connect(self, address, timeout=5,
                 address_type=BLEAddressType.public,
