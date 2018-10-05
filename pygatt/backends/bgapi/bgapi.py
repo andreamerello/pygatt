@@ -185,7 +185,7 @@ class BGAPIBackend(BLEBackend):
 
         # Fail immediately if no device is attached, don't retry waiting for one
         # to be plugged in.
-        self._open_serial_port(max_connection_attempts=1, timeout=0)
+        self._open_serial_port(max_connection_attempts=1)
         """
         log.info("Resetting and reconnecting to device for a clean environment")
         # Blow everything away and start anew.
@@ -198,9 +198,14 @@ class BGAPIBackend(BLEBackend):
         # starting a firmware update restart.
         self.send_command(CommandBuilder.system_reset(0))
         """
-        self._ser.flush()
-        self._ser.read(65535)
 
+        # Stop any ongoing procedure, scanning in particular.
+        self.send_command(CommandBuilder.gap_end_procedure())
+        self._ser.flush()
+        self._ser.close()
+
+        self._open_serial_port(max_connection_attempts=1, timeout=0.05)
+        self._ser.read(65535)
         self._ser.close()
 
         self._open_serial_port()
@@ -213,16 +218,6 @@ class BGAPIBackend(BLEBackend):
 
         self.disable_advertising()
         self.set_bondable(False)
-
-        # Stop any ongoing procedure
-        log.debug("Stopping any outstanding GAP procedure")
-        self.send_command(CommandBuilder.gap_end_procedure())
-        try:
-            self.expect(ResponsePacketType.gap_end_procedure)
-        except BGAPIError:
-            # Ignore any errors if there was no GAP procedure running
-            pass
-
         self.disconnect_all()
 
     def stop(self):
